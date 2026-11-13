@@ -1,0 +1,230 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4 Window Animation</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #050711;
+    overflow: hidden;
+}
+
+canvas {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const ID = sessionStorage.getItem("windowID") ||
+    crypto.randomUUID();
+
+sessionStorage.setItem("windowID", ID);
+
+const KEY = "animationSync";
+
+let panel = 0;
+let startTime = Date.now();
+
+function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+}
+
+resize();
+window.addEventListener("resize", resize);
+
+// 4 ta oynaga alohida raqam berish
+function registerWindow() {
+    let data = JSON.parse(localStorage.getItem(KEY) || "{}");
+
+    data.windows = data.windows || {};
+
+    const now = Date.now();
+
+    Object.keys(data.windows).forEach(id => {
+        if (now - data.windows[id].time > 6000) {
+            delete data.windows[id];
+        }
+    });
+
+    let used = Object.values(data.windows)
+        .map(item => item.panel);
+
+    if (data.windows[ID]) {
+        panel = data.windows[ID].panel;
+    } else {
+        panel = [0, 1, 2, 3].find(n => !used.includes(n));
+
+        if (panel === undefined) panel = 0;
+    }
+
+    data.windows[ID] = {
+        panel: panel,
+        time: now
+    };
+
+    if (!data.start) data.start = now;
+
+    startTime = data.start;
+
+    localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+registerWindow();
+
+// Sinxronlash
+setInterval(() => {
+    let data = JSON.parse(localStorage.getItem(KEY) || "{}");
+
+    if (!data.windows) data.windows = {};
+
+    if (data.windows[ID]) {
+        data.windows[ID].time = Date.now();
+    } else {
+        registerWindow();
+    }
+
+    localStorage.setItem(KEY, JSON.stringify(data));
+
+}, 1500);
+
+// 3D kub
+function drawCube(x, y, size, time) {
+    let points = [];
+
+    let angle = time * 0.001;
+
+    for (let i = 0; i < 8; i++) {
+        let px = (i & 1 ? 1 : -1) * size;
+        let py = (i & 2 ? 1 : -1) * size;
+        let pz = (i & 4 ? 1 : -1) * size;
+
+        let nx = px * Math.cos(angle) - pz * Math.sin(angle);
+        let nz = px * Math.sin(angle) + pz * Math.cos(angle);
+
+        let ny = py * Math.cos(angle * 0.7) - nz * Math.sin(angle * 0.7);
+
+        let perspective = 700 / (700 + nz);
+
+        points.push([
+            x + nx * perspective,
+            y + ny * perspective
+        ]);
+    }
+
+    const edges = [
+        [0,1],[0,2],[0,4],
+        [1,3],[1,5],[2,3],
+        [2,6],[3,7],[4,5],
+        [4,6],[5,7],[6,7]
+    ];
+
+    ctx.strokeStyle = "#38eaff";
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#38eaff";
+
+    edges.forEach(([a,b]) => {
+        ctx.beginPath();
+        ctx.moveTo(...points[a]);
+        ctx.lineTo(...points[b]);
+        ctx.stroke();
+    });
+
+    ctx.shadowBlur = 0;
+}
+
+// Animatsiya
+function animate() {
+    let time = Date.now() - startTime;
+
+    const W = innerWidth;
+    const H = innerHeight;
+
+    const worldW = W * 2;
+    const worldH = H * 2;
+
+    const offsetX = (panel % 2) * W;
+    const offsetY = Math.floor(panel / 2) * H;
+
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(-offsetX, -offsetY);
+
+    // Fon
+    ctx.fillStyle = "#050711";
+    ctx.fillRect(0, 0, worldW, worldH);
+
+    // Markaz
+    const cx = worldW / 2;
+    const cy = worldH / 2;
+
+    // Halqalar
+    for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.ellipse(
+            cx,
+            cy,
+            180 + i * 55,
+            100 + i * 30,
+            time * 0.0002,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.strokeStyle = i % 2
+            ? "#ff39bd"
+            : "#38eaff";
+
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Aylanadigan kub
+    drawCube(cx, cy, 110, time);
+
+    // Harakatlanuvchi nuqtalar
+    for (let i = 0; i < 20; i++) {
+        let a = time * 0.001 + i * 0.3;
+
+        let x = cx + Math.cos(a) * 350;
+        let y = cy + Math.sin(a) * 220;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+
+        ctx.fillStyle = "#38eaff";
+        ctx.fill();
+    }
+
+    ctx.restore();
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
